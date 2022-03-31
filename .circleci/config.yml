@@ -1,0 +1,41 @@
+version: 2.1
+orbs:
+  azure-cli: circleci/azure-cli@1.2.2
+jobs:
+  build:
+    docker:
+      - image: cimg/php:8.0
+    steps:
+      - checkout
+      # Download and cache dependencies
+      - restore_cache:
+          keys:
+            - v1-dependencies-{{ checksum "composer.json" }}
+      - run:
+          name: "Install Dependencies"
+          command: composer install -n --prefer-dist
+
+      - save_cache:
+          key: v1-dependencies-{{ checksum "composer.json" }}
+          paths:
+            - ./vendor
+  login-to-azure-and-deploy:
+    executor: azure-cli/default
+    steps:
+      - checkout
+      - azure-cli/install
+      - azure-cli/login-with-user:
+          alternate-tenant: false
+      - run:
+          command: az webapp deployment source show --resource-group DemoGroup --name laravel-azure-application
+      - run:
+          name: "Deploy Web App to Azure"
+          command: |
+            az webapp deployment source config-local-git --resource-group DemoGroup --name laravel-azure-application
+workflows:
+  build-and-deploy:
+    jobs:
+      - build
+      - login-to-azure-and-deploy:
+          requires:
+            - build
